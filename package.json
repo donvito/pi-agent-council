@@ -1,0 +1,27 @@
+{
+  "name": "@donvitocodes/pi-agent-council",
+  "version": "0.1.0",
+  "description": "Independent, read-only model opinions inside Pi, with agreement and disagreement preserved.",
+  "type": "module",
+  "license": "MIT",
+  "author": "donvitocodes",
+  "engines": { "node": ">=22.19.0" },
+  "keywords": ["pi-package", "pi-extension", "council"],
+  "files": ["index.ts", "src", "skills", "README.md", "LICENSE", "council.example.json"],
+  "pi": { "extensions": ["./index.ts"], "skills": ["./skills"] },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm test",
+    "prepublishOnly": "npm run check"
+  },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-ai": "*" },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.99.2",
+    "@earendil-works/pi-ai": "0.99.2",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "publishConfig": { "access": "public" }
+}
