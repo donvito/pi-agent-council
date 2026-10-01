@@ -1,7 +1,9 @@
 import type { CouncilResult } from "./council.ts";
+import { renderUsage } from "./usage.ts";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 
 // Flatten individual fields so model-generated Markdown cannot forge report sections.
-const inline = (s: string, limit = 700) => s.replace(/\s+/g, " ").replace(/[<>`#*_\[\]\\]/g, "").slice(0, limit);
+const inline = (s: string, limit = 700) => stripTerminalSequences(s).replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").replace(/[<>`#*_\[\]\\|]/g, "").slice(0, limit);
 const bullets = (items: string[], empty: string) => items.length ? items.slice(0, 4).map(s => `- ${inline(s)}`).join("\n") : `- ${empty}`;
 export function renderReport(result: CouncilResult): string {
   const ok = result.members.filter(m => m.opinion);
@@ -23,5 +25,6 @@ export function renderReport(result: CouncilResult): string {
   const assumptions = c?.keyAssumptions ?? ok.flatMap(m => m.opinion!.assumptions.map(a => `${m.member.label}: ${a}`));
   parts.push(`### Key assumptions\n${bullets(assumptions, "No assumptions supplied.")}`);
   parts.push(`### Decision-changing evidence\n${bullets(c?.decisionChangingEvidence ?? [], "Gather evidence for the stated assumptions and risks before deciding.")}`);
+  parts.push(renderUsage(result));
   return parts.join("\n\n");
 }

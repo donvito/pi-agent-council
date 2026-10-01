@@ -8,6 +8,11 @@ import extension from "../index.ts";
 import { loadConfig, DEFAULT_CONFIG } from "../src/config.ts";
 import { snapshotContext } from "../src/context.ts";
 import { registryMock } from "./helpers.ts";
+import { comparison, opinion, response } from "./helpers.ts";
+import { renderReport } from "../src/report.ts";
+import { CouncilView } from "../src/view.ts";
+import type { TUI } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 
 test("loads TypeScript through Pi's real extension loader and discovers the skill", async () => {
   const dir = await mkdtemp(join(tmpdir(), "council-loader-"));
@@ -19,6 +24,7 @@ test("loads TypeScript through Pi's real extension loader and discovers the skil
     assert.ok(council);
     assert.ok(council.commands.has("council"));
     assert.ok(council.commands.has("council-cancel"));
+    assert.ok(council.commands.has("council-view"));
     assert.equal(council.tools.size, 0);
     assert.equal(loader.getSkills().skills.find(s => s.name === "council")?.disableModelInvocation, true);
     assert.deepEqual(loader.getSkills().diagnostics, []);
@@ -65,6 +71,8 @@ test("command injects a visible report into session context without starting a t
     const m = h.sent[0].message;
     h.session.appendCustomMessageEntry(m.customType, m.content, m.display, m.details);
     assert.match(snapshotContext(h.session.getBranch(), 48000), /Agent Council/);
+    assert.match(snapshotContext(h.session.getBranch(), 48000), /Reported cost \(USD\)/);
+    assert.ok((m.details as { durationMs: number }).durationMs >= 0);
     assert.equal(h.calls.length, 3);
     assert.match(h.notifications.join("\n"), /GPT-6.1 Sol: complete/);
   } finally {
@@ -98,4 +106,40 @@ test("snapshot is bounded, excludes thinking/system instructions, and retains to
   assert.match(snapshot, /Earlier context omitted/);
   assert.match(snapshot, /Relevant source/);
   assert.doesNotMatch(snapshot, /SECRET SYSTEM/);
+});
+
+test("viewer uses persisted branch data, makes no model calls, and closes on session replacement", async () => {
+  const h = harness("/tmp");
+  const r = { question: "Q", members: DEFAULT_CONFIG.members.map(member => ({ member, opinion: { ...opinion, confidence: "medium" as const }, usage: response("").usage })), comparison };
+  h.session.appendCustomMessageEntry("agent-council-report", renderReport(r), true, r);
+  h.ctx.mode = "tui";
+  let view: CouncilView | undefined;
+  h.ctx.ui.custom = async (factory, options) => new Promise(resolve => {
+    assert.equal(options?.overlay, true);
+    const tui = { terminal: { rows: 30 }, requestRender: () => {} } as unknown as TUI;
+    const theme = { fg: (_color: string, s: string) => s } as Theme;
+    const component = factory(tui, theme, {} as never, resolve);
+    assert.ok(component instanceof CouncilView);
+    view = component;
+    assert.match(view.render(120).join("\n"), /GPT-6.1 Sol.*Claude Opus 5.5/);
+  });
+  const pending = h.commands.get("council-view")!.handler("", h.ctx);
+  assert.ok(view);
+  h.events.get("session_start")!();
+  await pending;
+  assert.equal(h.calls.length, 0);
+  const reopened = h.commands.get("council-view")!.handler("", h.ctx);
+  view!.handleInput("\u001b");
+  await reopened;
+  assert.equal(h.calls.length, 0);
+  h.ctx.mode = "print";
+  await h.commands.get("council-view")!.handler("", h.ctx);
+  assert.match(h.notifications.at(-1)!, /requires interactive Pi/);
+});
+
+test("viewer reports an empty branch without opening an overlay", async () => {
+  const h = harness("/tmp");
+  await h.commands.get("council-view")!.handler("", h.ctx);
+  assert.match(h.notifications.at(-1)!, /No council report on this branch/);
+  assert.equal(h.calls.length, 0);
 });

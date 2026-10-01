@@ -11,6 +11,7 @@ export interface MemberResult {
   opinion?: Opinion;
   error?: string;
   usage?: Usage;
+  durationMs?: number;
 }
 export interface CouncilResult {
   question: string;
@@ -19,6 +20,8 @@ export interface CouncilResult {
   synthesisError?: string;
   synthesisUsage?: Usage;
   synthesizer?: { provider: string; id: string };
+  synthesisDurationMs?: number;
+  durationMs?: number;
 }
 export type CouncilRegistry = Pick<ModelRegistry, "getAll" | "hasConfiguredAuth" | "streamSimple">;
 
@@ -31,7 +34,7 @@ export function safeError(error: unknown): string {
     .replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 500);
 }
 
-async function request(registry: CouncilRegistry, model: Model<Api>, context: Context, config: CouncilConfig, parent: AbortSignal) {
+async function request(registry: CouncilRegistry, model: Model<Api>, context: Context, config: CouncilConfig, parent: AbortSignal, onUsage: (usage: Usage) => void) {
   parent.throwIfAborted();
   const controller = new AbortController();
   const forward = () => controller.abort(parent.reason);
@@ -54,6 +57,8 @@ async function request(registry: CouncilRegistry, model: Model<Api>, context: Co
       }).result(),
       aborted,
     ]);
+    // Retain accounting even when the response cannot become a usable opinion.
+    onUsage(response.usage);
     if (response.stopReason === "error" || response.stopReason === "aborted") {
       // Provider error bodies can contain headers/credentials. Keep UI diagnostics generic.
       throw new Error(`Provider request ${response.stopReason} for ${model.provider}/${model.id}. Check Pi authentication, quota, and connectivity.`);
@@ -79,6 +84,7 @@ export async function runCouncil(options: {
   progress?: (label: string, state: "running" | "done" | "error", error?: string) => void;
 }): Promise<CouncilResult> {
   const { question, snapshot, config, registry, signal, progress } = options;
+  const started = performance.now();
   const context: Context = {
     systemPrompt: ADVISOR_PROMPT,
     messages: [{ role: "user", content: JSON.stringify({ question, sessionSnapshot: snapshot }), timestamp: Date.now() }],
@@ -98,40 +104,46 @@ export async function runCouncil(options: {
     }
     const identity = { provider: model.provider, id: model.id };
     progress?.(member.label, "running");
+    const callStarted = performance.now();
+    let usage: Usage | undefined;
     try {
-      const response = await request(registry, model, context, config, signal);
+      const response = await request(registry, model, context, config, signal, value => { usage = value; });
       const opinion = parseOpinion(response.text);
       progress?.(member.label, "done");
-      return { member, model: identity, opinion, usage: response.usage };
+      return { member, model: identity, opinion, usage, durationMs: performance.now() - callStarted };
     } catch (e) {
       const error = safeError(e);
       progress?.(member.label, "error", error);
-      return { member, model: identity, error };
+      return { member, model: identity, error, usage, durationMs: performance.now() - callStarted };
     }
   }));
   signal.throwIfAborted();
   const result: CouncilResult = { question, members };
   const successful = members.filter(m => m.opinion);
-  if (successful.length < 2) return result;
+  const finish = () => { result.durationMs = performance.now() - started; return result; };
+  if (successful.length < 2) return finish();
 
   const firstSuccess = resolved.find(r => r.model && successful.some(s => s.model?.provider === r.model!.provider && s.model.id === r.model!.id))?.model;
   const synthesizer = options.currentModel && registry.hasConfiguredAuth(options.currentModel) ? options.currentModel : firstSuccess;
-  if (!synthesizer) return result;
+  if (!synthesizer) return finish();
   result.synthesizer = { provider: synthesizer.provider, id: synthesizer.id };
   progress?.("Comparison", "running");
+  const synthesisStarted = performance.now();
   try {
     const response = await request(registry, synthesizer, {
       systemPrompt: COMPARISON_PROMPT,
       messages: [{ role: "user", content: JSON.stringify({ question, opinions: successful.map(m => ({ member: m.member.label, opinion: m.opinion })) }), timestamp: Date.now() }],
       tools: [],
-    }, config, signal);
+    }, config, signal, value => { result.synthesisUsage = value; });
     result.comparison = parseComparison(response.text);
     result.synthesisUsage = response.usage;
     progress?.("Comparison", "done");
   } catch (e) {
     result.synthesisError = safeError(e);
     progress?.("Comparison", "error", result.synthesisError);
+  } finally {
+    result.synthesisDurationMs = performance.now() - synthesisStarted;
   }
   signal.throwIfAborted();
-  return result;
+  return finish();
 }

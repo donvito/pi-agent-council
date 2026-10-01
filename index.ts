@@ -3,15 +3,40 @@ import { loadConfig } from "./src/config.ts";
 import { snapshotContext } from "./src/context.ts";
 import { runCouncil, safeError } from "./src/council.ts";
 import { renderReport } from "./src/report.ts";
+import { CouncilView, latestCouncilReport } from "./src/view.ts";
 
 export default function councilExtension(pi: ExtensionAPI) {
   let active: AbortController | undefined;
+  let closeView: (() => void) | undefined;
   const notify = (ctx: ExtensionContext, text: string, type: "info" | "warning" | "error" = "info") => {
     if (ctx.hasUI) ctx.ui.notify(text, type);
   };
-  const cancel = () => active?.abort(new Error("Council cancelled."));
+  const cancel = () => { active?.abort(new Error("Council cancelled.")); closeView?.(); };
   pi.on("session_shutdown", cancel);
   pi.on("session_tree", cancel);
+  pi.on("session_start", cancel);
+
+  pi.registerCommand("council-view", {
+    description: "View the latest council report side by side",
+    handler: async (_args, ctx) => {
+      const report = latestCouncilReport(ctx.sessionManager.getBranch());
+      if (!report) { notify(ctx, "No council report on this branch. Run /council <question> first.", "warning"); return; }
+      if (ctx.mode !== "tui" || !ctx.hasUI) {
+        if (ctx.hasUI) notify(ctx, "Council viewer requires interactive Pi; the report is in the transcript.");
+        else console.log("Council viewer requires interactive Pi; the report is in the transcript.");
+        return;
+      }
+      closeView?.();
+      let close: (() => void) | undefined;
+      try {
+        await ctx.ui.custom<void>((tui, theme, _keys, done) => {
+          close = () => done();
+          closeView = close;
+          return new CouncilView(report, theme, () => Math.max(3, Math.floor(tui.terminal.rows * 0.8)), () => tui.requestRender(), close);
+        }, { overlay: true, overlayOptions: { width: "95%", maxHeight: "80%", anchor: "center" } });
+      } finally { if (closeView === close) closeView = undefined; }
+    },
+  });
 
   pi.registerCommand("council-cancel", {
     description: "Cancel the running council requests",
