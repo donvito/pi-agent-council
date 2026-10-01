@@ -1,4 +1,6 @@
-# @donvitocodes/pi-agent-council
+# Pi Agent Council
+
+A Pi extension.
 
 Get independent, read-only model advice inside Pi.
 
