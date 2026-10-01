@@ -17,22 +17,16 @@ Requirements:
 - Node.js **22.19+**.
 - Pi **0.99.2**, or a compatible version with `modelRegistry.streamSimple`.
 
-From GitHub:
-
-```sh
-pi install git:github.com/donvito/pi-agent-council
-```
-
-From a local checkout:
-
-```sh
-pi install /absolute/path/to/pi-agent-council
-```
-
-From npm:
+Install from npm:
 
 ```sh
 pi install npm:@donvitocodes/pi-agent-council
+```
+
+Or install the GitHub **v0.1.0** release:
+
+```sh
+pi install git:github.com/donvito/pi-agent-council@v0.1.0
 ```
 
 Restart Pi or run `/reload`. No build step is needed.
@@ -107,6 +101,14 @@ The example also includes `timeoutMs`, `maxContextChars`, and `maxOutputTokens`.
 Pi manages credentials. No council-specific API keys are needed.
 
 ## Development
+
+Install a local checkout:
+
+```sh
+pi install /absolute/path/to/pi-agent-council
+```
+
+Run checks:
 
 ```sh
 npm ci --ignore-scripts
