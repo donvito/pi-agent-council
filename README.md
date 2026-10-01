@@ -29,7 +29,7 @@ From a local checkout:
 pi install /absolute/path/to/pi-agent-council
 ```
 
-Once published to npm:
+From npm:
 
 ```sh
 pi install npm:@donvitocodes/pi-agent-council
