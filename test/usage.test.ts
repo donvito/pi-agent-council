@@ -4,9 +4,9 @@ import { runCouncil } from "../src/council.ts";
 import { DEFAULT_CONFIG } from "../src/config.ts";
 import { renderReport } from "../src/report.ts";
 import { usageSummary } from "../src/usage.ts";
-import { comparison, deferred, models, opinion, registryMock, response } from "./helpers.ts";
+import { comparison, deferred, models, opinion, registryMock, response, TWO_MEMBER_CONFIG } from "./helpers.ts";
 
-const run = (registry: ReturnType<typeof registryMock>["registry"]) => runCouncil({ question: "Q", snapshot: "S", config: DEFAULT_CONFIG, registry, signal: new AbortController().signal });
+const run = (registry: ReturnType<typeof registryMock>["registry"]) => runCouncil({ question: "Q", snapshot: "S", config: TWO_MEMBER_CONFIG, registry, signal: new AbortController().signal });
 
 test("usage totals retain input, output, cached tokens, costs, and parallel wall time", async t => {
   let now = 0;

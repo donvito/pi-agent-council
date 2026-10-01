@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: CouncilConfig = {
   members: [
     { label: "GPT-6.1 Sol", model: "gpt-6.1-sol" },
     { label: "Claude Opus 5.5", model: "claude-opus-5-5" },
+    { label: "GPT-6 Astra", model: "gpt-6-astra" },
   ],
   timeoutMs: 120_000,
   maxContextChars: 48_000,

@@ -73,7 +73,7 @@ test("command injects a visible report into session context without starting a t
     assert.match(snapshotContext(h.session.getBranch(), 48000), /Agent Council/);
     assert.match(snapshotContext(h.session.getBranch(), 48000), /Reported cost \(USD\)/);
     assert.ok((m.details as { durationMs: number }).durationMs >= 0);
-    assert.equal(h.calls.length, 3);
+    assert.equal(h.calls.length, 4);
     assert.match(h.notifications.join("\n"), /GPT-6.1 Sol: complete/);
   } finally {
     if (previous === undefined) delete process.env.PI_COUNCIL_CONFIG; else process.env.PI_COUNCIL_CONFIG = previous;

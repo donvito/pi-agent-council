@@ -1,16 +1,19 @@
 # @donvitocodes/pi-agent-council
 
-Get independent, read-only model advice inside Pi:
+Get independent, read-only model advice inside Pi.
 
 ```text
 /council Should we refactor this service before adding retries?
 ```
 
-Advisors run in parallel. The report preserves each opinion and summarizes agreement, disagreement, assumptions, and decision-changing evidence.
+Advisors run in parallel. Reports include each opinion, agreements, disagreements, assumptions, and evidence needed to decide.
 
 ## Install
 
-Requires Node.js **22.19+** and Pi **0.99.2** or a compatible version exposing `modelRegistry.streamSimple`.
+Requirements:
+
+- Node.js **22.19+**.
+- Pi **0.99.2**, or a compatible version with `modelRegistry.streamSimple`.
 
 From GitHub:
 
@@ -18,7 +21,7 @@ From GitHub:
 pi install git:github.com/donvito/pi-agent-council
 ```
 
-From a source checkout:
+From a local checkout:
 
 ```sh
 pi install /absolute/path/to/pi-agent-council
@@ -30,48 +33,76 @@ Once published to npm:
 pi install npm:@donvitocodes/pi-agent-council
 ```
 
-Restart Pi or run `/reload`. No build step is required.
+Restart Pi or run `/reload`. No build step is needed.
 
 ## Usage
 
-1. Authenticate your providers with Pi's `/login` or existing provider configuration.
-2. Bring relevant code, requirements, and diffs into the session. Advisors see session text and tool results; they cannot read files or run tools.
-3. Run `/council <question>`, then ask Pi to check the report's assumptions or act on its recommendations.
+1. Authenticate providers with `/login` or your existing Pi configuration.
+2. Add relevant code, requirements, and diffs to the session.
+3. Run `/council <question>`.
+4. Ask Pi to check assumptions or act on the report.
 
-Use `/council-view` to open the latest report on the current branch in a scrollable comparison overlay. Wide terminals show advisor pairs side by side; narrow terminals stack them. Left/right switches pairs, up/down or Page Up/Down scrolls, Home/End jumps, and Escape closes. Reopening makes no model calls.
+| Command | Action |
+|---|---|
+| `/council <question>` | Consult advisors. One run at a time. |
+| `/council-view` | Open the latest report on the current branch. |
+| `/council-cancel` | Stop the current run. |
+| `/skill:council` | Get optional decision guidance. Disable via `pi config`. |
 
-Reports include tokens, reported cost, and duration per call, plus totals. Missing usage is marked; reported costs may differ from billing.
+### Viewer controls
 
-Use `/council-cancel` to stop a run. Only one council can run at a time. Reports stay in session context without starting an automatic agent turn.
+Wide terminals show two advisors side by side. Narrow terminals stack them.
 
-Council calls send session text to your configured providers and consume their normal usage/quota. Context is limited to 48,000 characters by default, with the oldest text omitted. Failures remain visible and successful opinions are preserved.
+| Key | Action |
+|---|---|
+| Left / Right | Switch advisor pairs. |
+| Up / Down, Page Up / Page Down | Scroll. |
+| Home / End | Jump to the top / bottom. |
+| Escape | Close. |
+
+Reopening a report makes no model calls.
+
+### What to expect
+
+- Advisors receive session text and tool results. They cannot read files or run tools.
+- Calls send text to configured providers and consume their usage/quota.
+- Context defaults to 48,000 characters. Older text is trimmed.
+- Reports preserve successful opinions and show failures.
+- Usage shows tokens, reported cost, duration, and totals. Costs may differ from billing; missing usage is marked.
+- Reports stay in session context without starting an automatic agent turn.
 
 ## Configuration
 
-Default advisors: **GPT-6.1 Sol** (`gpt-6.1-sol`) and **Claude Opus 5.5** (`claude-opus-5-5`). They must be available and authenticated in your Pi model catalog; unavailable models are never silently replaced.
+Default advisors:
 
-Copy [council.example.json](council.example.json) to:
+- **GPT-6.1 Sol**: `gpt-6.1-sol`.
+- **Claude Opus 5.5**: `claude-opus-5-5`.
+- **GPT-6 Astra**: `gpt-6-astra`.
 
-- `$PI_CODING_AGENT_DIR/council.json` (normally `~/.pi/agent/council.json`) for global settings.
-- `.pi/council.json` for a trusted project. Project properties override global properties; `members` replaces the entire array.
+Models must be available and authenticated in Pi. Unavailable models are never silently replaced.
 
-Alternatively, set `PI_COUNCIL_CONFIG=/absolute/path/council.json` to use only that file.
+Copy [council.example.json](council.example.json) to a configuration location:
 
-```json
-{
-  "members": [
-    { "label": "GPT-6.1 Sol", "model": "gpt-6.1-sol" },
-    { "label": "Claude Opus 5.5", "model": "claude-opus-5-5" }
-  ],
-  "timeoutMs": 120000,
-  "maxContextChars": 48000,
-  "maxOutputTokens": 4096
-}
-```
+| Scope | Location |
+|---|---|
+| Global | `$PI_CODING_AGENT_DIR/council.json`, normally `~/.pi/agent/council.json` |
+| Trusted project | `.pi/council.json` |
+| Explicit file | Set `PI_COUNCIL_CONFIG=/absolute/path/council.json` |
 
-Configure 2–8 distinct models using IDs from `/model` or `pi --list-models`. Add `"provider": "YOUR_PI_PROVIDER_ID"` to a member if multiple authenticated providers offer the same model. Pi manages credentials; no council-specific API keys are needed.
+Project properties override global properties. A project `members` array replaces the whole array.
 
-The optional `/skill:council` provides decision guidance and can be disabled via `pi config`.
+An explicit file replaces both default locations.
+
+To customize:
+
+1. Choose **2–8 distinct models**.
+2. Find model IDs with `/model` or `pi --list-models`.
+3. Edit `members` in your configuration file.
+4. Add `"provider": "YOUR_PI_PROVIDER_ID"` if multiple authenticated providers offer the same model.
+
+The example also includes `timeoutMs`, `maxContextChars`, and `maxOutputTokens`.
+
+Pi manages credentials. No council-specific API keys are needed.
 
 ## Development
 
@@ -80,6 +111,6 @@ npm ci --ignore-scripts
 npm run check
 ```
 
-Checks use fake model streams and require no provider credentials.
+Checks use fake model streams. No provider credentials are needed.
 
 [Apache 2.0 license](LICENSE).

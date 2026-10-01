@@ -1,6 +1,10 @@
 import type { Api, AssistantMessage, AssistantMessageEventStream, Context, Model, ModelsSimpleStreamOptions } from "@earendil-works/pi-ai";
 import type { CouncilRegistry } from "../src/council.ts";
 import { DEFAULT_CONFIG } from "../src/config.ts";
+import { ADVISOR_PROMPT } from "../src/opinions.ts";
+
+// Keep explicitly two-advisor scenarios independent of the shipped defaults.
+export const TWO_MEMBER_CONFIG = { ...DEFAULT_CONFIG, members: DEFAULT_CONFIG.members.slice(0, 2) };
 
 export const models = DEFAULT_CONFIG.members.map((m, i) => ({
   id: m.model, name: m.label, provider: `provider-${i}`, api: "openai-completions",
@@ -25,7 +29,7 @@ export function registryMock(handler?: (call: Call, index: number) => Promise<As
     streamSimple: (model, context, options) => {
       const call = { model, context, options };
       const index = calls.push(call) - 1;
-      return { result: () => handler ? handler(call, index) : Promise.resolve(response(JSON.stringify(index < 2 ? opinion : comparison), model)) } as AssistantMessageEventStream;
+      return { result: () => handler ? handler(call, index) : Promise.resolve(response(JSON.stringify(context.systemPrompt === ADVISOR_PROMPT ? opinion : comparison), model)) } as AssistantMessageEventStream;
     },
   };
   return { registry, calls };

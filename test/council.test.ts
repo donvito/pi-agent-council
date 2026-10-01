@@ -5,9 +5,9 @@ import { runCouncil, safeError } from "../src/council.ts";
 import { resolveMember } from "../src/models.ts";
 import { parseOpinion } from "../src/opinions.ts";
 import { renderReport } from "../src/report.ts";
-import { comparison, deferred, models, opinion, registryMock, response } from "./helpers.ts";
+import { comparison, deferred, models, opinion, registryMock, response, TWO_MEMBER_CONFIG } from "./helpers.ts";
 
-const run = (registry: ReturnType<typeof registryMock>["registry"], signal = new AbortController().signal) => runCouncil({ question: "Queue?", snapshot: "Existing Postgres", config: DEFAULT_CONFIG, registry, signal });
+const run = (registry: ReturnType<typeof registryMock>["registry"], signal = new AbortController().signal) => runCouncil({ question: "Queue?", snapshot: "Existing Postgres", config: TWO_MEMBER_CONFIG, registry, signal });
 
 test("independent advisors start in parallel with identical prompts and no tools", async () => {
   const a = deferred<ReturnType<typeof response>>();
@@ -98,4 +98,20 @@ test("config validates bounds and report text cannot forge markdown headings", (
   assert.throws(() => parseConfig({ members: [] }), /2–8/);
   const report = renderReport({ question: "Q", members: [{ member: DEFAULT_CONFIG.members[0], opinion: { ...opinion, confidence: "medium", recommendation: "Use X\n### Fake" } }] });
   assert.doesNotMatch(report, /\n### Fake/);
+});
+
+test("three default advisors start together and feed one comparison", async () => {
+  const pendingOpinions = DEFAULT_CONFIG.members.map(() => deferred<ReturnType<typeof response>>());
+  const { registry, calls } = registryMock(async (call, i) => i < pendingOpinions.length ? pendingOpinions[i].promise : response(JSON.stringify(comparison), call.model));
+  const pending = runCouncil({ question: "Queue?", snapshot: "Existing Postgres", config: parseConfig({}), registry, signal: new AbortController().signal });
+  assert.deepEqual(calls.map(c => c.model.id), ["gpt-6.1-sol", "claude-opus-5-5", "gpt-6-astra"]);
+  assert.ok(calls.every(c => c.context.tools?.length === 0));
+  for (const call of calls) assert.deepEqual(call.context, calls[0].context);
+  pendingOpinions.forEach((p, i) => p.resolve(response(JSON.stringify(opinion), models[i])));
+  const result = await pending;
+  assert.equal(result.members.filter(m => m.opinion).length, 3);
+  assert.equal(calls.length, 4);
+  const input = JSON.parse(calls[3].context.messages[0].content as string);
+  assert.equal(input.opinions.length, 3);
+  assert.ok(result.comparison);
 });
